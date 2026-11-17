@@ -4,7 +4,9 @@ An n8n workflow that handles a website quote request end to end. A WordPress for
 
 > Demo project for a lawn care company's intake process. Not affiliated with LawnSavers.
 
-<!-- Add a screenshot of the n8n canvas: docs/screenshots/workflow.png -->
+![The LawnSavers Lead Bot workflow in n8n](docs/screenshots/workflow.webp)
+
+Study guide for the project: [`docs/study-guide.md`](docs/study-guide.md)
 
 ## Architecture
 
