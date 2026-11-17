@@ -5,7 +5,7 @@ Follow these in order. Each step ends with a ✅ check: don't move on until it p
 ## 0. Accounts and credentials (~35 min)
 
 1. **n8n Cloud**: start the free trial at n8n.io.
-2. **Groq**: console.groq.com → API Keys → create a key. Check the Models page and make sure `llama-3.3-70b-versatile` is still listed. If it isn't, pick a current model and change `GROQ_MODEL` in `scripts/build-workflows.js`, then run `npm run build`.
+2. **Groq**: console.groq.com → API Keys → create a key. Check the Models page and make sure `openai/gpt-oss-120b` is still listed. If it isn't, pick a current model and change `GROQ_MODEL` in `scripts/build-workflows.js`, then run `npm run build`.
    In n8n: **Credentials → New → Header Auth**. Name it `Groq API key`, header name `Authorization`, value `Bearer <your key>`.
 3. **Google**: create a Google Sheet called `LawnSavers Leads`. Put this header row in row 1:
    `timestamp | name | email | service_type | urgency | is_complaint | needs_human | routed_to | summary`

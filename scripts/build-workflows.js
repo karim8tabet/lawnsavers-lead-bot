@@ -13,7 +13,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
-const GROQ_MODEL = 'llama-3.3-70b-versatile'; // check console.groq.com/docs/models for current names
+const GROQ_MODEL = 'openai/gpt-oss-120b'; // check console.groq.com/docs/models for current names
 const MANAGER_EMAIL = 'YOUR_EMAIL@gmail.com'; // replace in the n8n UI after import
 const WEBHOOK_PATH = 'lawnsavers-lead';
 
