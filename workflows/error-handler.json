@@ -2,36 +2,43 @@
   "name": "LawnSavers Lead Bot - Error Handler",
   "nodes": [
     {
-      "id": "n-0021-4000-8000-000000000000",
+      "parameters": {},
+      "id": "fdd180af-73c1-4493-a6f2-27f724a47df8",
       "name": "Error Trigger",
       "type": "n8n-nodes-base.errorTrigger",
       "typeVersion": 1,
       "position": [
-        0,
-        300
-      ],
-      "parameters": {}
+        -16,
+        16
+      ]
     },
     {
-      "id": "n-0022-4000-8000-000000000000",
-      "name": "Email me the error",
-      "type": "n8n-nodes-base.gmail",
-      "typeVersion": 2.1,
-      "position": [
-        220,
-        300
-      ],
       "parameters": {
-        "sendTo": "YOUR_EMAIL@gmail.com",
+        "sendTo": "you@example.com",
         "subject": "={{ '[n8n ERROR] ' + $json.workflow.name + ' failed at ' + ($json.execution?.lastNodeExecuted ?? 'unknown node') }}",
         "emailType": "text",
         "message": "=Workflow: {{ $json.workflow.name }}\nFailed node: {{ $json.execution?.lastNodeExecuted ?? 'unknown' }}\nError: {{ $json.execution?.error?.message ?? 'no message' }}\nExecution: {{ $json.execution?.url ?? 'n/a' }}",
         "options": {
           "appendAttribution": false
         }
+      },
+      "id": "2085c901-c7ef-4d70-8c2d-79c1ce4894f5",
+      "name": "Email me the error",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        208,
+        16
+      ],
+      "webhookId": "ce7e667a-1102-4f8d-9a82-8633f387d630",
+      "credentials": {
+        "gmailOAuth2": {
+          "name": "Gmail account"
+        }
       }
     }
   ],
+  "pinData": {},
   "connections": {
     "Error Trigger": {
       "main": [
@@ -45,8 +52,14 @@
       ]
     }
   },
+  "active": true,
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "binaryMode": "separate"
   },
-  "pinData": {}
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": [],
+  "tags": []
 }

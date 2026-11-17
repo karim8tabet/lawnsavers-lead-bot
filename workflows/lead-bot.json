@@ -2,31 +2,22 @@
   "name": "LawnSavers Lead Bot",
   "nodes": [
     {
-      "id": "n-0001-4000-8000-000000000000",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lawnsavers-lead",
+        "options": {}
+      },
+      "id": "d5b91b8b-8173-4d5b-ab3e-c86a5a67b0a1",
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        0,
-        300
+        -464,
+        16
       ],
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "lawnsavers-lead",
-        "responseMode": "onReceived",
-        "options": {}
-      },
       "webhookId": "b7e1c0de-1a2b-4c3d-8e9f-1a2b3c4d5e6f"
     },
     {
-      "id": "n-0011-4000-8000-000000000000",
-      "name": "Normalize",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
-      "position": [
-        220,
-        300
-      ],
       "parameters": {
         "assignments": {
           "assignments": [
@@ -87,17 +78,17 @@
           ]
         },
         "options": {}
-      }
+      },
+      "id": "1bb06184-0c44-474d-b858-9fc5cd9f3539",
+      "name": "Normalize",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -240,
+        16
+      ]
     },
     {
-      "id": "n-0012-4000-8000-000000000000",
-      "name": "Groq classify",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        440,
-        300
-      ],
       "parameters": {
         "method": "POST",
         "url": "https://api.groq.com/openai/v1/chat/completions",
@@ -110,59 +101,68 @@
           "timeout": 30000
         }
       },
+      "id": "5d4a5eff-c276-4857-a60e-024606d18ecc",
+      "name": "Groq classify",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -16,
+        16
+      ],
       "retryOnFail": true,
       "maxTries": 2,
       "waitBetweenTries": 2000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Header Auth account"
+        }
+      },
       "onError": "continueRegularOutput"
     },
     {
-      "id": "n-0013-4000-8000-000000000000",
+      "parameters": {
+        "jsCode": "// Guardrail for the LawnSavers Lead Bot.\n//\n// The LLM's output is never trusted directly. checkLead() takes the\n// normalized lead and the raw Groq HTTP response, and returns one object\n// with the AI fields plus:\n//   needs_human  true if anything looks wrong\n//   flags        list of reasons (shown in the manager email)\n//   routed_to    \"manager\" or \"auto_reply\"\n//\n// This same code runs inside the n8n Code node (scripts/build-workflows.js\n// copies it in), so the unit tests cover exactly what runs in production.\n\nconst SERVICES = [\n  'lawn care',\n  'weed control',\n  'aeration',\n  'overseeding',\n  'tree & shrub care',\n  'mosquito/tick control',\n  'holiday lighting',\n  'other',\n];\nconst URGENCIES = ['high', 'normal'];\n\n// Prices, money and discounts must never go to a customer automatically.\nconst MONEY_PATTERNS = [\n  /\\$/,\n  /\\d+\\s*%/,\n  /\\b\\d+\\s*(dollars|bucks|cad|usd)\\b/i,\n  /\\b(discount|coupon|promo|rebate|refund|price|pricing|cost|costs|fee|cheap)\\b/i,\n  /\\b(free of charge|for free|free (quote|estimate|service|treatment|visit))\\b/i,\n  /\\b\\d+\\s*off\\b/i,\n];\n\n// Promised dates or times: a human should commit to those, not the bot.\nconst DATE_PATTERNS = [\n  /\\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\\b/i,\n  /\\b(tomorrow|tonight|next week|this week|this weekend)\\b/i,\n  /\\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\\.?\\s+\\d{1,2}\\b/i,\n  /\\b\\d{1,2}(st|nd|rd|th)\\b/i,\n  /\\bwithin\\s+\\d+\\s*(hours?|days?|business days?|weeks?)\\b/i,\n  /\\b(guarantee|guaranteed|promise)\\b/i,\n];\n\n// Customer text that tries to give the AI new instructions.\nconst INJECTION_PATTERNS = [\n  /\\b(ignore|disregard|forget)\\b.{0,30}\\b(instructions?|rules|prompt|above)\\b/i,\n  /\\bsystem prompt\\b/i,\n  /\\byou are now\\b/i,\n  /\\bact as\\b/i,\n  /\\b(developer|dan|jailbreak) mode\\b/i,\n  /\\bnew instructions?\\b/i,\n];\n\nconst EMAIL_RE = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\n\nfunction matchesAny(text, patterns) {\n  return patterns.some((re) => re.test(text));\n}\n\n// Spam / junk: too few real letters, mostly symbols, or link-stuffed.\nfunction looksLikeJunk(message) {\n  const text = String(message || '');\n  const letters = (text.match(/[a-z]/gi) || []).length;\n  const nonSpace = text.replace(/\\s/g, '').length;\n  const links = (text.match(/https?:\\/\\/|www\\./gi) || []).length;\n  if (letters < 15) return true;\n  if (nonSpace > 0 && letters / nonSpace < 0.6) return true;\n  if (links >= 2) return true;\n  return false;\n}\n\n// Pull the model's text out of the Groq (OpenAI-style) response and parse it.\nfunction parseLlm(groqResponse, flags) {\n  if (!groqResponse || groqResponse.error) {\n    flags.push('llm_call_failed');\n    return null;\n  }\n  const content =\n    groqResponse.choices &&\n    groqResponse.choices[0] &&\n    groqResponse.choices[0].message &&\n    groqResponse.choices[0].message.content;\n  if (typeof content !== 'string') {\n    flags.push('llm_empty_response');\n    return null;\n  }\n  // Some models wrap JSON in ```json fences even in JSON mode.\n  const cleaned = content.trim().replace(/^```(?:json)?\\s*/i, '').replace(/\\s*```$/, '');\n  try {\n    const parsed = JSON.parse(cleaned);\n    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {\n      flags.push('llm_not_an_object');\n      return null;\n    }\n    return parsed;\n  } catch (e) {\n    flags.push('llm_invalid_json');\n    return null;\n  }\n}\n\nfunction checkLead(lead, groqResponse, now) {\n  const flags = [];\n  const ai = parseLlm(groqResponse, flags) || {};\n\n  // 1. Shape check: every field present with the right type and value.\n  const out = {\n    service_type: ai.service_type,\n    urgency: ai.urgency,\n    is_complaint: ai.is_complaint,\n    summary: ai.summary,\n    reply_draft: ai.reply_draft,\n  };\n  if (flags.length === 0) {\n    if (!SERVICES.includes(out.service_type)) flags.push('invalid_service_type');\n    if (!URGENCIES.includes(out.urgency)) flags.push('invalid_urgency');\n    if (typeof out.is_complaint !== 'boolean') flags.push('invalid_is_complaint');\n    if (typeof out.summary !== 'string' || !out.summary.trim()) flags.push('missing_summary');\n    if (typeof out.reply_draft !== 'string' || !out.reply_draft.trim()) flags.push('missing_reply_draft');\n  }\n\n  // Safe defaults so later nodes (HubSpot, Sheet, email) never get undefined.\n  if (!SERVICES.includes(out.service_type)) out.service_type = 'unknown';\n  if (!URGENCIES.includes(out.urgency)) out.urgency = 'normal';\n  if (typeof out.is_complaint !== 'boolean') out.is_complaint = false;\n  if (typeof out.summary !== 'string' || !out.summary.trim()) {\n    out.summary = 'AI classification failed. Please review the original message.';\n  }\n  if (typeof out.reply_draft !== 'string') out.reply_draft = '';\n\n  // 2. Content checks on the AI's reply.\n  if (out.service_type === 'other') flags.push('service_not_offered');\n  if (matchesAny(out.reply_draft, MONEY_PATTERNS)) flags.push('reply_mentions_money');\n  if (matchesAny(out.reply_draft, DATE_PATTERNS)) flags.push('reply_promises_date');\n\n  // 3. Checks on what the customer sent.\n  const message = String(lead.message || '');\n  if (matchesAny(message, INJECTION_PATTERNS)) flags.push('prompt_injection_suspected');\n  if (looksLikeJunk(message)) flags.push('junk_or_spam');\n  if (!EMAIL_RE.test(String(lead.email || ''))) flags.push('invalid_email');\n\n  const needs_human = flags.length > 0;\n  const routed_to =\n    out.is_complaint || out.urgency === 'high' || needs_human ? 'manager' : 'auto_reply';\n\n  return {\n    ...lead,\n    ...out,\n    needs_human,\n    flags,\n    flags_text: flags.length ? flags.join(', ') : 'none',\n    routed_to,\n    timestamp: (now || new Date()).toISOString(),\n  };\n}\n\n// ---- n8n glue ----\n// $input is the Groq HTTP response; the lead comes from the Normalize node.\nconst lead = $('Normalize').first().json;\nconst groqResponse = $input.first().json;\nreturn [{ json: checkLead(lead, groqResponse) }];\n"
+      },
+      "id": "ba84c417-d79c-4d3e-a4bf-9fd6863a306c",
       "name": "Guardrail",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        660,
-        300
-      ],
-      "parameters": {
-        "jsCode": "// Guardrail for the LawnSavers Lead Bot.\n//\n// The LLM's output is never trusted directly. checkLead() takes the\n// normalized lead and the raw Groq HTTP response, and returns one object\n// with the AI fields plus:\n//   needs_human  true if anything looks wrong\n//   flags        list of reasons (shown in the manager email)\n//   routed_to    \"manager\" or \"auto_reply\"\n//\n// This same code runs inside the n8n Code node (scripts/build-workflows.js\n// copies it in), so the unit tests cover exactly what runs in production.\n\nconst SERVICES = [\n  'lawn care',\n  'weed control',\n  'aeration',\n  'overseeding',\n  'tree & shrub care',\n  'mosquito/tick control',\n  'holiday lighting',\n  'other',\n];\nconst URGENCIES = ['high', 'normal'];\n\n// Prices, money and discounts must never go to a customer automatically.\nconst MONEY_PATTERNS = [\n  /\\$/,\n  /\\d+\\s*%/,\n  /\\b\\d+\\s*(dollars|bucks|cad|usd)\\b/i,\n  /\\b(discount|coupon|promo|rebate|refund|price|pricing|cost|costs|fee|cheap)\\b/i,\n  /\\b(free of charge|for free|free (quote|estimate|service|treatment|visit))\\b/i,\n  /\\b\\d+\\s*off\\b/i,\n];\n\n// Promised dates or times: a human should commit to those, not the bot.\nconst DATE_PATTERNS = [\n  /\\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\\b/i,\n  /\\b(tomorrow|tonight|next week|this week|this weekend)\\b/i,\n  /\\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\\.?\\s+\\d{1,2}\\b/i,\n  /\\b\\d{1,2}(st|nd|rd|th)\\b/i,\n  /\\bwithin\\s+\\d+\\s*(hours?|days?|business days?|weeks?)\\b/i,\n  /\\b(guarantee|guaranteed|promise)\\b/i,\n];\n\n// Customer text that tries to give the AI new instructions.\nconst INJECTION_PATTERNS = [\n  /\\b(ignore|disregard|forget)\\b.{0,30}\\b(instructions?|rules|prompt|above)\\b/i,\n  /\\bsystem prompt\\b/i,\n  /\\byou are now\\b/i,\n  /\\bact as\\b/i,\n  /\\b(developer|dan|jailbreak) mode\\b/i,\n  /\\bnew instructions?\\b/i,\n];\n\nconst EMAIL_RE = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\n\nfunction matchesAny(text, patterns) {\n  return patterns.some((re) => re.test(text));\n}\n\n// Spam / junk: too few real letters, mostly symbols, or link-stuffed.\nfunction looksLikeJunk(message) {\n  const text = String(message || '');\n  const letters = (text.match(/[a-z]/gi) || []).length;\n  const nonSpace = text.replace(/\\s/g, '').length;\n  const links = (text.match(/https?:\\/\\/|www\\./gi) || []).length;\n  if (letters < 15) return true;\n  if (nonSpace > 0 && letters / nonSpace < 0.6) return true;\n  if (links >= 2) return true;\n  return false;\n}\n\n// Pull the model's text out of the Groq (OpenAI-style) response and parse it.\nfunction parseLlm(groqResponse, flags) {\n  if (!groqResponse || groqResponse.error) {\n    flags.push('llm_call_failed');\n    return null;\n  }\n  const content =\n    groqResponse.choices &&\n    groqResponse.choices[0] &&\n    groqResponse.choices[0].message &&\n    groqResponse.choices[0].message.content;\n  if (typeof content !== 'string') {\n    flags.push('llm_empty_response');\n    return null;\n  }\n  // Some models wrap JSON in ```json fences even in JSON mode.\n  const cleaned = content.trim().replace(/^```(?:json)?\\s*/i, '').replace(/\\s*```$/, '');\n  try {\n    const parsed = JSON.parse(cleaned);\n    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {\n      flags.push('llm_not_an_object');\n      return null;\n    }\n    return parsed;\n  } catch (e) {\n    flags.push('llm_invalid_json');\n    return null;\n  }\n}\n\nfunction checkLead(lead, groqResponse, now) {\n  const flags = [];\n  const ai = parseLlm(groqResponse, flags) || {};\n\n  // 1. Shape check: every field present with the right type and value.\n  const out = {\n    service_type: ai.service_type,\n    urgency: ai.urgency,\n    is_complaint: ai.is_complaint,\n    summary: ai.summary,\n    reply_draft: ai.reply_draft,\n  };\n  if (flags.length === 0) {\n    if (!SERVICES.includes(out.service_type)) flags.push('invalid_service_type');\n    if (!URGENCIES.includes(out.urgency)) flags.push('invalid_urgency');\n    if (typeof out.is_complaint !== 'boolean') flags.push('invalid_is_complaint');\n    if (typeof out.summary !== 'string' || !out.summary.trim()) flags.push('missing_summary');\n    if (typeof out.reply_draft !== 'string' || !out.reply_draft.trim()) flags.push('missing_reply_draft');\n  }\n\n  // Safe defaults so later nodes (HubSpot, Sheet, email) never get undefined.\n  if (!SERVICES.includes(out.service_type)) out.service_type = 'unknown';\n  if (!URGENCIES.includes(out.urgency)) out.urgency = 'normal';\n  if (typeof out.is_complaint !== 'boolean') out.is_complaint = false;\n  if (typeof out.summary !== 'string' || !out.summary.trim()) {\n    out.summary = 'AI classification failed. Please review the original message.';\n  }\n  if (typeof out.reply_draft !== 'string') out.reply_draft = '';\n\n  // 2. Content checks on the AI's reply.\n  if (out.service_type === 'other') flags.push('service_not_offered');\n  if (matchesAny(out.reply_draft, MONEY_PATTERNS)) flags.push('reply_mentions_money');\n  if (matchesAny(out.reply_draft, DATE_PATTERNS)) flags.push('reply_promises_date');\n\n  // 3. Checks on what the customer sent.\n  const message = String(lead.message || '');\n  if (matchesAny(message, INJECTION_PATTERNS)) flags.push('prompt_injection_suspected');\n  if (looksLikeJunk(message)) flags.push('junk_or_spam');\n  if (!EMAIL_RE.test(String(lead.email || ''))) flags.push('invalid_email');\n\n  const needs_human = flags.length > 0;\n  const routed_to =\n    out.is_complaint || out.urgency === 'high' || needs_human ? 'manager' : 'auto_reply';\n\n  return {\n    ...lead,\n    ...out,\n    needs_human,\n    flags,\n    flags_text: flags.length ? flags.join(', ') : 'none',\n    routed_to,\n    timestamp: (now || new Date()).toISOString(),\n  };\n}\n\n// ---- n8n glue ----\n// $input is the Groq HTTP response; the lead comes from the Normalize node.\nconst lead = $('Normalize').first().json;\nconst groqResponse = $input.first().json;\nreturn [{ json: checkLead(lead, groqResponse) }];\n"
-      }
+        192,
+        16
+      ]
     },
     {
-      "id": "n-0014-4000-8000-000000000000",
+      "parameters": {
+        "authentication": "appToken",
+        "email": "you@example.com",
+        "additionalFields": {
+          "city": "={{ $('Guardrail').item.json.city }}",
+          "firstName": "={{ $('Guardrail').item.json.firstname }}",
+          "lastName": "={{ $('Guardrail').item.json.lastname }}",
+          "lifeCycleStage": "lead",
+          "phoneNumber": "={{ $('Guardrail').item.json.phone }}"
+        },
+        "options": {}
+      },
+      "id": "8a2f331b-a252-408b-84de-ad2e773b206c",
       "name": "HubSpot upsert contact",
       "type": "n8n-nodes-base.hubspot",
       "typeVersion": 2.1,
       "position": [
-        880,
-        300
+        416,
+        16
       ],
-      "parameters": {
-        "authentication": "appToken",
-        "resource": "contact",
-        "operation": "upsert",
-        "email": "={{ $('Guardrail').item.json.email }}",
-        "additionalFields": {
-          "firstName": "={{ $('Guardrail').item.json.firstname }}",
-          "lastName": "={{ $('Guardrail').item.json.lastname }}",
-          "city": "={{ $('Guardrail').item.json.city }}",
-          "phoneNumber": "={{ $('Guardrail').item.json.phone }}",
-          "lifeCycleStage": "lead"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 2,
-      "waitBetweenTries": 2000
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "hubspotAppToken": {
+          "name": "HubSpot Service Key account"
+        }
+      }
     },
     {
-      "id": "n-0015-4000-8000-000000000000",
-      "name": "HubSpot add note",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1100,
-        300
-      ],
       "parameters": {
         "method": "POST",
         "url": "https://api.hubapi.com/crm/v3/objects/notes",
@@ -173,30 +173,39 @@
         "jsonBody": "={{ JSON.stringify({ properties: { hs_timestamp: new Date().toISOString(), hs_note_body: 'Lead Bot (' + $('Guardrail').item.json.routed_to + '): ' + $('Guardrail').item.json.summary + ' | Service: ' + $('Guardrail').item.json.service_type + ' | Urgency: ' + $('Guardrail').item.json.urgency + ' | Flags: ' + $('Guardrail').item.json.flags_text + ' | Message: ' + $('Guardrail').item.json.message }, associations: [ { to: { id: String($json.vid ?? $json[\"canonical-vid\"] ?? $json.id) }, types: [ { associationCategory: \"HUBSPOT_DEFINED\", associationTypeId: 202 } ] } ] }) }}",
         "options": {}
       },
+      "id": "f7715169-e825-472f-af12-d80643c725b2",
+      "name": "HubSpot add note",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        640,
+        16
+      ],
       "retryOnFail": true,
       "maxTries": 2,
-      "waitBetweenTries": 2000
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "hubspotAppToken": {
+          "name": "HubSpot Service Key account"
+        }
+      }
     },
     {
-      "id": "n-0016-4000-8000-000000000000",
-      "name": "Log to Google Sheet",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
-      "position": [
-        1320,
-        300
-      ],
       "parameters": {
         "operation": "append",
         "documentId": {
           "__rl": true,
-          "value": "",
-          "mode": "list"
+          "value": "1EFglC3hBi8UbQpVQbyymWMfB2Q9VU8t41iJv3swtsC0",
+          "mode": "list",
+          "cachedResultName": "LawnSavers Leads",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1EFglC3hBi8UbQpVQbyymWMfB2Q9VU8t41iJv3swtsC0/edit?usp=drivesdk"
         },
         "sheetName": {
           "__rl": true,
-          "value": "",
-          "mode": "list"
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1EFglC3hBi8UbQpVQbyymWMfB2Q9VU8t41iJv3swtsC0/edit#gid=0"
         },
         "columns": {
           "mappingMode": "defineBelow",
@@ -220,7 +229,8 @@
               "defaultMatch": false,
               "display": true,
               "type": "string",
-              "canBeUsedToMatch": true
+              "canBeUsedToMatch": true,
+              "removed": false
             },
             {
               "id": "name",
@@ -229,7 +239,8 @@
               "defaultMatch": false,
               "display": true,
               "type": "string",
-              "canBeUsedToMatch": true
+              "canBeUsedToMatch": true,
+              "removed": false
             },
             {
               "id": "email",
@@ -238,7 +249,8 @@
               "defaultMatch": false,
               "display": true,
               "type": "string",
-              "canBeUsedToMatch": true
+              "canBeUsedToMatch": true,
+              "removed": false
             },
             {
               "id": "service_type",
@@ -247,7 +259,8 @@
               "defaultMatch": false,
               "display": true,
               "type": "string",
-              "canBeUsedToMatch": true
+              "canBeUsedToMatch": true,
+              "removed": false
             },
             {
               "id": "urgency",
@@ -256,7 +269,8 @@
               "defaultMatch": false,
               "display": true,
               "type": "string",
-              "canBeUsedToMatch": true
+              "canBeUsedToMatch": true,
+              "removed": false
             },
             {
               "id": "is_complaint",
@@ -265,7 +279,8 @@
               "defaultMatch": false,
               "display": true,
               "type": "string",
-              "canBeUsedToMatch": true
+              "canBeUsedToMatch": true,
+              "removed": false
             },
             {
               "id": "needs_human",
@@ -274,7 +289,8 @@
               "defaultMatch": false,
               "display": true,
               "type": "string",
-              "canBeUsedToMatch": true
+              "canBeUsedToMatch": true,
+              "removed": false
             },
             {
               "id": "routed_to",
@@ -283,7 +299,8 @@
               "defaultMatch": false,
               "display": true,
               "type": "string",
-              "canBeUsedToMatch": true
+              "canBeUsedToMatch": true,
+              "removed": false
             },
             {
               "id": "summary",
@@ -292,28 +309,37 @@
               "defaultMatch": false,
               "display": true,
               "type": "string",
-              "canBeUsedToMatch": true
+              "canBeUsedToMatch": true,
+              "removed": false
             }
-          ]
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
         },
         "options": {}
+      },
+      "id": "dd4ce7ba-4fe3-4ffa-b6f1-80b0805b19c6",
+      "name": "Log to Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        864,
+        16
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "name": "Google Sheets account"
+        }
       }
     },
     {
-      "id": "n-0018-4000-8000-000000000000",
-      "name": "Needs manager?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [
-        1540,
-        300
-      ],
       "parameters": {
         "conditions": {
           "options": {
             "caseSensitive": true,
             "leftValue": "",
-            "typeValidation": "strict"
+            "typeValidation": "strict",
+            "version": 1
           },
           "conditions": [
             {
@@ -329,47 +355,68 @@
           "combinator": "and"
         },
         "options": {}
-      }
+      },
+      "id": "be2219d4-1025-472e-a48d-40232bf3a807",
+      "name": "Needs manager?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1072,
+        16
+      ]
     },
     {
-      "id": "n-0019-4000-8000-000000000000",
-      "name": "Email manager",
-      "type": "n8n-nodes-base.gmail",
-      "typeVersion": 2.1,
-      "position": [
-        1760,
-        200
-      ],
       "parameters": {
-        "sendTo": "YOUR_EMAIL@gmail.com",
+        "sendTo": "you@example.com",
         "subject": "={{ '[LawnSavers lead] Needs review: ' + $('Guardrail').item.json.name + ' (' + $('Guardrail').item.json.service_type + ')' }}",
         "emailType": "text",
         "message": "=A lead needs a human. No auto-reply was sent.\n\nName: {{ $('Guardrail').item.json.name }}\nEmail: {{ $('Guardrail').item.json.email }}\nPhone: {{ $('Guardrail').item.json.phone }}\nCity: {{ $('Guardrail').item.json.city }}\n\nService: {{ $('Guardrail').item.json.service_type }}\nUrgency: {{ $('Guardrail').item.json.urgency }}\nComplaint: {{ $('Guardrail').item.json.is_complaint }}\nGuardrail flags: {{ $('Guardrail').item.json.flags_text }}\n\nAI summary: {{ $('Guardrail').item.json.summary }}\n\nOriginal message:\n{{ $('Guardrail').item.json.message }}\n\nSuggested reply (NOT sent, review first):\n{{ $('Guardrail').item.json.reply_draft }}",
         "options": {
           "appendAttribution": false
         }
-      }
-    },
-    {
-      "id": "n-0020-4000-8000-000000000000",
-      "name": "Auto-reply customer",
+      },
+      "id": "adc693cb-7fa7-4829-ba9c-01837e8d4f5d",
+      "name": "Email manager",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "position": [
-        1760,
-        400
+        1296,
+        -80
       ],
+      "webhookId": "e91cd2a4-e192-4eda-8595-155667f057cd",
+      "credentials": {
+        "gmailOAuth2": {
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
       "parameters": {
         "sendTo": "={{ $('Guardrail').item.json.email }}",
-        "subject": "Thanks for contacting LawnSavers",
+        "subject": "Thank you for contacting LawnSavers",
         "emailType": "text",
         "message": "={{ $('Guardrail').item.json.reply_draft }}",
         "options": {
           "appendAttribution": false
         }
+      },
+      "id": "c0a748ea-2970-4caa-b260-1fbba6e68361",
+      "name": "Auto-reply customer",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1296,
+        128
+      ],
+      "webhookId": "80421cd2-5c6c-4035-b2c1-931716fbdb3e",
+      "credentials": {
+        "gmailOAuth2": {
+          "name": "Gmail account"
+        }
       }
     }
   ],
+  "pinData": {},
   "connections": {
     "Webhook": {
       "main": [
@@ -467,8 +514,17 @@
       ]
     }
   },
+  "active": true,
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
   },
-  "pinData": {}
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": [],
+  "tags": []
 }
