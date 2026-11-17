@@ -1,0 +1,16 @@
+flowchart LR
+    WP["WordPress form<br/>(Fluent Forms)"] -->|POST JSON| WH["Webhook"]
+    PS["run-tests.ps1"] -.->|POST JSON| WH
+    WH --> N["Normalize<br/>(Set)"]
+    N --> GQ["Groq classify<br/>(HTTP Request)"]
+    GQ --> GR{{"Guardrail<br/>(Code)"}}
+    GR --> HS["HubSpot<br/>upsert contact"]
+    HS --> HN["HubSpot<br/>add note"]
+    HN --> GS["Google Sheet<br/>append row"]
+    GS --> IF{"routed_to =<br/>manager?"}
+    IF -->|yes| EM["Gmail: alert manager<br/>(no auto-reply)"]
+    IF -->|no| AR["Gmail: auto-reply<br/>customer"]
+
+    subgraph Error workflow
+      ET["Error Trigger"] --> EE["Gmail: email me<br/>the error"]
+    end

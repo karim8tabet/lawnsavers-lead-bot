@@ -1,0 +1,11 @@
+{
+  "name": "lawnsavers-lead-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "n8n workflow that triages website quote requests with an LLM, a guardrail, HubSpot and Google Sheets.",
+  "scripts": {
+    "test": "node --test",
+    "build": "node scripts/build-workflows.js"
+  },
+  "license": "MIT"
+}

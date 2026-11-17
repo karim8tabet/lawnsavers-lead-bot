@@ -1,0 +1,52 @@
+{
+  "name": "LawnSavers Lead Bot - Error Handler",
+  "nodes": [
+    {
+      "id": "n-0021-4000-8000-000000000000",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "n-0022-4000-8000-000000000000",
+      "name": "Email me the error",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "sendTo": "YOUR_EMAIL@gmail.com",
+        "subject": "={{ '[n8n ERROR] ' + $json.workflow.name + ' failed at ' + ($json.execution?.lastNodeExecuted ?? 'unknown node') }}",
+        "emailType": "text",
+        "message": "=Workflow: {{ $json.workflow.name }}\nFailed node: {{ $json.execution?.lastNodeExecuted ?? 'unknown' }}\nError: {{ $json.execution?.error?.message ?? 'no message' }}\nExecution: {{ $json.execution?.url ?? 'n/a' }}",
+        "options": {
+          "appendAttribution": false
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Email me the error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}
